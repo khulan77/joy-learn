@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id       String            @id
+  grade    Int               @default(3)
+  sessions LearningSession[]
+  mastery  Mastery[]
+}
+
+model Subject {
+  id     String  @id
+  name   String
+  topics Topic[]
+}
+
+model Topic {
+  id        String    @id
+  name      String
+  grade     Int       @default(3)
+  subjectId String
+  subject   Subject   @relation(fields: [subjectId], references: [id])
+  problems  Problem[]
+  mastery   Mastery[]
+}
+
+model Problem {
+  id       String            @id @default(cuid())
+  text     String
+  topicId  String
+  topic    Topic             @relation(fields: [topicId], references: [id])
+  sessions LearningSession[]
+
+  @@unique([text, topicId])
+}
+
+model LearningSession {
+  id        String         @id
+  studentId String
+  student   Student        @relation(fields: [studentId], references: [id])
+  problemId String
+  problem   Problem        @relation(fields: [problemId], references: [id])
+  status    String         @default("active")
+  step      Int            @default(0)
+  hintLevel Int            @default(0)
+  hintsUsed Int            @default(0)
+  version   Int            @default(0)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  attempts  Attempt[]
+  messages  TutorMessage[]
+
+  @@index([studentId, updatedAt])
+}
+
+model Attempt {
+  id        String          @id
+  sessionId String
+  session   LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  answer    String
+  position  Int
+  correct   Boolean
+  step      Int
+  hintLevel Int
+  createdAt DateTime        @default(now())
+
+  @@unique([sessionId, position])
+}
+
+model TutorMessage {
+  id        String          @id
+  sessionId String
+  session   LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String
+  content   String
+  position  Int
+  createdAt DateTime        @default(now())
+
+  @@unique([sessionId, position])
+}
+
+model Mastery {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  topicId   String
+  topic     Topic    @relation(fields: [topicId], references: [id])
+  score     Float?
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, topicId])
+}
