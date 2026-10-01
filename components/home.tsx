@@ -45,6 +45,14 @@ export function Home({ landing = false }: { landing?: boolean }) {
           <span className="art-star">✧</span>
         </div>
       </section>
+      <div className="practice-entry">
+        <Link className="button" href="/practice">
+          Дадлага хийх →
+        </Link>
+        <Link className="subtle-link" href="/progress">
+          Миний ахиц →
+        </Link>
+      </div>
       <section className="next-section">
         <div className="section-title">
           <h2>Өнөөдөр юу хийх вэ?</h2>

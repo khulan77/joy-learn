@@ -1,3 +1,4 @@
+import type { PracticeData } from "./practice";
 export type Operation = "+" | "-" | "×" | "÷";
 export interface Step {
   question: string;
@@ -17,6 +18,7 @@ export interface Message {
   createdAt: string;
 }
 export interface Attempt {
+  detectedMistake?: string;
   id: string;
   answer: string;
   correct: boolean;
@@ -25,6 +27,7 @@ export interface Attempt {
   createdAt: string;
 }
 export interface Session {
+  practice?: PracticeData;
   id: string;
   studentId: string;
   problem: string;

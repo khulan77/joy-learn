@@ -18,6 +18,14 @@ import {
   repository,
   PersistenceConflictError,
 } from "../../../packages/database";
+import { skills } from "../../../packages/curriculum/sample";
+import {
+  masteryConfig,
+  startPractice,
+  respondPractice,
+  practiceView,
+  progressView,
+} from "../../../packages/learning-engine";
 import { createExercise } from "../../../packages/curriculum";
 import type { Session } from "../../../packages/shared";
 const store = repository();
@@ -70,7 +78,7 @@ class SessionsController {
   async get(@Headers("x-student-id") token: string, @Param("id") id: string) {
     const owner = student(token),
       s = await store.get(id);
-    if (!s || s.studentId !== owner)
+    if (!s || s.practice || s.studentId !== owner)
       throw new HttpException("Хичээл олдсонгүй.", 404);
     return view(s);
   }
@@ -89,7 +97,7 @@ class SessionsController {
       throw new HttpException("Invalid turn", 400);
     return run(async () => {
       const s = await store.get(id);
-      if (!s || s.studentId !== owner)
+      if (!s || s.practice || s.studentId !== owner)
         throw new HttpException("Хичээл олдсонгүй.", 404);
       if (data.version !== s.version)
         throw new TutorError("Хуудсаа дахин ачаалаарай.", 409);
@@ -102,13 +110,112 @@ class SessionsController {
     });
   }
 }
+@Controller()
+class PracticeController {
+  @Get("curriculum")
+  async curriculum() {
+    const exercises = await store.curriculum();
+    return {
+      grade: 3,
+      subject: "math",
+      source: "sample",
+      skills: skills.map((skill) => ({
+        ...skill,
+        exerciseCount: exercises.filter((e) => e.skillId === skill.id).length,
+      })),
+    };
+  }
+  @Get("progress")
+  async progress(@Headers("x-student-id") token: string) {
+    const owner = student(token);
+    return progressView(
+      await store.practiceSessions(owner),
+      await store.masteryHistory(owner),
+      store.mode,
+    );
+  }
+  @Post("practice")
+  async start(@Headers("x-student-id") token: string, @Body() body: unknown) {
+    const owner = student(token),
+      data = object(body);
+    if (data.skillId !== undefined && typeof data.skillId !== "string")
+      throw new HttpException("Invalid skill", 400);
+    return run(async () => {
+      const sessions = await store.practiceSessions(owner);
+      const progress = progressView(
+        sessions,
+        await store.masteryHistory(owner),
+        store.mode,
+      );
+      const skillId =
+        typeof data.skillId === "string"
+          ? data.skillId
+          : progress.recommendedSkillId;
+      const score =
+        progress.skills.find((s) => s.skill.id === skillId)?.score ??
+        masteryConfig.initial;
+      const session = startPractice(
+        owner,
+        skillId,
+        score,
+        sessions.filter((s) => s.practice?.skill.id === skillId),
+        await store.curriculum(),
+      );
+      await store.save(session);
+      return practiceView(session, store.mode);
+    });
+  }
+  @Get("practice/resume")
+  async resume(@Headers("x-student-id") token: string) {
+    const sessions = await store.practiceSessions(student(token));
+    const last = sessions.at(-1);
+    return last ? practiceView(last, store.mode) : null;
+  }
+  @Get("practice/:id")
+  async get(@Headers("x-student-id") token: string, @Param("id") id: string) {
+    const owner = student(token),
+      s = await store.get(id);
+    if (!s?.practice || s.studentId !== owner)
+      throw new HttpException("Дасгал олдсонгүй.", 404);
+    return practiceView(s, store.mode);
+  }
+  @Post("practice/:id/turns")
+  async turn(
+    @Headers("x-student-id") token: string,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const owner = student(token),
+      data = object(body);
+    if (
+      !Number.isInteger(data.version) ||
+      (data.hint !== true && typeof data.answer !== "string")
+    )
+      throw new HttpException("Invalid turn", 400);
+    return run(async () => {
+      const s = await store.get(id);
+      if (!s?.practice || s.studentId !== owner)
+        throw new HttpException("Дасгал олдсонгүй.", 404);
+      if (s.version !== data.version) throw new PersistenceConflictError();
+      const next = respondPractice(s, {
+        hint: data.hint === true,
+        answer: typeof data.answer === "string" ? data.answer : undefined,
+      });
+      await store.save(next, s.version);
+      return practiceView(next, store.mode);
+    });
+  }
+}
 @Injectable()
 class StorageLifecycle implements OnModuleDestroy {
   async onModuleDestroy() {
     await store.disconnect();
   }
 }
-@Module({ controllers: [SessionsController], providers: [StorageLifecycle] })
+@Module({
+  controllers: [SessionsController, PracticeController],
+  providers: [StorageLifecycle],
+})
 class AppModule {}
 async function bootstrap() {
   await store.connect();

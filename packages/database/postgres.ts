@@ -1,3 +1,5 @@
+import type { PracticeData } from "../shared/practice";
+import { PostgresPracticeStore } from "./practice-postgres";
 import { PrismaClient } from "@prisma/client";
 import type { Session } from "../shared";
 import { PersistenceConflictError, type SessionRepository } from "./repository";
@@ -11,6 +13,25 @@ export class PostgresRepository implements SessionRepository {
   async disconnect() {
     await this.db.$disconnect();
   }
+  private get practiceStore() {
+    return new PostgresPracticeStore(this.db);
+  }
+  curriculum() {
+    return this.practiceStore.curriculum();
+  }
+  masteryHistory(studentId: string) {
+    return this.practiceStore.masteryHistory(studentId);
+  }
+  async practiceSessions(studentId: string): Promise<Session[]> {
+    const rows = await this.db.learningSession.findMany({
+      where: { studentId, exerciseId: { not: null } },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { id: true },
+    });
+    return (await Promise.all(rows.map((row) => this.get(row.id)))).filter(
+      (s): s is Session => s !== null,
+    );
+  }
   async get(id: string): Promise<Session | null> {
     const row = await this.db.learningSession.findUnique({
       where: { id },
@@ -22,6 +43,9 @@ export class PostgresRepository implements SessionRepository {
     });
     if (!row) return null;
     return {
+      ...(row.practice
+        ? { practice: row.practice as unknown as PracticeData }
+        : {}),
       id: row.id,
       studentId: row.studentId,
       grade: 3,
@@ -35,6 +59,7 @@ export class PostgresRepository implements SessionRepository {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       attempts: row.attempts.map((a) => ({
+        ...(a.detectedMistake ? { detectedMistake: a.detectedMistake } : {}),
         id: a.id,
         answer: a.answer,
         correct: a.correct,
@@ -51,6 +76,7 @@ export class PostgresRepository implements SessionRepository {
     };
   }
   async save(s: Session, expectedVersion?: number) {
+    if (s.practice) return this.practiceStore.save(s, expectedVersion);
     await this.db.$transaction(async (tx) => {
       let attemptCount = 0;
       let messageCount = 0;

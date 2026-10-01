@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 5126",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -11,7 +11,7 @@
     "build:api": "tsc -p apps/api/tsconfig.json",
     "start:api": "node --env-file-if-exists=.env dist/apps/api/src/main.js",
     "typecheck": "next typegen && tsc --noEmit && tsc -p apps/api/tsconfig.json --noEmit",
-    "test": "bun test tests/tutor.test.ts tests/storage-config.test.ts",
+    "test": "bun test tests/tutor.test.ts tests/storage-config.test.ts tests/learning-engine.test.ts",
     "db:generate": "prisma generate --schema packages/database/prisma/schema.prisma",
     "test:e2e": "playwright test",
     "db:up": "docker compose up -d --wait postgres",
@@ -21,7 +21,8 @@
     "db:status": "prisma migrate status --schema packages/database/prisma/schema.prisma",
     "test:postgres": "bun run build:api && bun test ./tests/postgres.integration.ts",
     "db:native:install": "npm install --cache .data/npm-cache --prefix .data/postgres-runtime embedded-postgres@17.10.0-beta.17",
-    "db:native": "node --env-file=.env scripts/dev-postgres.mjs"
+    "db:native": "node --env-file=.env scripts/dev-postgres.mjs",
+    "db:seed": "bun scripts/seed-curriculum.ts"
   },
   "dependencies": {
     "@nestjs/common": "11",
