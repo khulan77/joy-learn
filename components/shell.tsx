@@ -43,6 +43,18 @@ export function Shell({
           >
             <span>☏</span>Жойтой суралцах
           </Link>
+          <Link
+            className={active === "practice" ? "nav-item selected" : "nav-item"}
+            href="/practice"
+          >
+            <span>✎</span>Дадлага
+          </Link>
+          <Link
+            className={active === "progress" ? "nav-item selected" : "nav-item"}
+            href="/progress"
+          >
+            <span>▥</span>Миний ахиц
+          </Link>
         </nav>
         <div className="sidebar-note">
           <span>✧</span>

@@ -1,3 +1,6 @@
+import { seedCurriculum } from "../packages/database/seed";
+import { startPractice, respondPractice } from "../packages/learning-engine";
+import type { PracticeView, ProgressView } from "../packages/shared/practice";
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { PrismaClient } from "@prisma/client";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -42,6 +45,7 @@ beforeAll(async () => {
       "Test migration failed. Check TEST_DATABASE_URL and PostgreSQL availability.",
     );
   await repo.connect();
+  await seedCurriculum(db);
 }, 30000);
 
 afterAll(async () => {
@@ -50,6 +54,7 @@ afterAll(async () => {
   await db.learningSession.deleteMany({
     where: { studentId: { in: studentIds } },
   });
+  await db.mastery.deleteMany({ where: { studentId: { in: studentIds } } });
   await db.student.deleteMany({ where: { id: { in: studentIds } } });
   await repo.disconnect();
   await db.$disconnect();
@@ -195,5 +200,112 @@ test("HTTP create → tutor turns → API restart → resume → complete uses P
   expect(s.status).toBe("completed");
   expect(s.hintsUsed).toBe(2);
   expect(await db.attempt.count({ where: { sessionId: id } })).toBe(5);
+  await stopApi();
+}, 30000);
+
+test("practice and mastery are atomic, concurrent and idempotent", async () => {
+  const student = newStudent();
+  const s = startPractice(student, "division", 50, [], await repo.curriculum());
+  await repo.save(s);
+  const wrong = respondPractice(s, { answer: "18" });
+  const results = await Promise.allSettled([
+    repo.save(wrong, 0),
+    repo.save(wrong, 0),
+  ]);
+  expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+  expect(await repo.get(s.id)).toEqual(wrong);
+  expect(await repo.masteryHistory(student)).toHaveLength(1);
+  expect((await repo.masteryHistory(student))[0].after).toBe(45);
+  const broken = respondPractice(wrong, { answer: "4" });
+  broken.messages[broken.messages.length - 1].id = s.messages[0].id;
+  await expect(repo.save(broken, wrong.version)).rejects.toThrow();
+  expect((await repo.get(s.id))?.version).toBe(1);
+  expect(await repo.masteryHistory(student)).toHaveLength(1);
+  const s2 = startPractice(
+    student,
+    "division",
+    45,
+    [wrong],
+    await repo.curriculum(),
+  );
+  await repo.save(s2);
+  await Promise.all([
+    repo.save(respondPractice(wrong, { answer: "4" }), wrong.version),
+    repo.save(
+      respondPractice(s2, {
+        answer: String(s2.practice!.exercise.correctAnswer),
+      }),
+      0,
+    ),
+  ]);
+  expect(
+    (
+      await db.mastery.findUnique({
+        where: {
+          studentId_skillId: { studentId: student, skillId: "division" },
+        },
+      })
+    )?.score,
+  ).toBe(61);
+  expect(await repo.masteryHistory(student)).toHaveLength(3);
+});
+
+test("practice HTTP privacy, progressive help, mastery and resume survive API restart", async () => {
+  await startApi();
+  const owner = newStudent(),
+    headers = { "Content-Type": "application/json", "x-student-id": owner };
+  const response = await fetch(`${origin}/practice`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ skillId: "division" }),
+  });
+  expect(response.status).toBe(201);
+  let s = (await response.json()) as PracticeView;
+  expect(JSON.stringify(s)).not.toContain("correctAnswer");
+  expect((await fetch(`${origin}/sessions/${s.id}`, { headers })).status).toBe(
+    404,
+  );
+  expect(
+    (
+      await fetch(`${origin}/practice/${s.id}`, {
+        headers: { "x-student-id": newStudent() },
+      })
+    ).status,
+  ).toBe(404);
+  for (const answer of ["18", "999", "999", "4"]) {
+    const response = await fetch(`${origin}/practice/${s.id}/turns`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ answer, version: s.version }),
+    });
+    expect(response.status).toBe(201);
+    s = (await response.json()) as PracticeView;
+  }
+  expect(s.hintLevel).toBe(3);
+  expect(s.status).toBe("completed");
+  const before = (await (
+    await fetch(`${origin}/progress`, { headers })
+  ).json()) as ProgressView;
+  expect(before.skills.find((p) => p.skill.id === "division")?.score).toBe(36);
+  expect(before.skills.find((p) => p.skill.id === "division")?.hintsUsed).toBe(
+    3,
+  );
+  await stopApi();
+  await startApi();
+  expect(
+    await (await fetch(`${origin}/practice/resume`, { headers })).json(),
+  ).toEqual(s);
+  expect(await (await fetch(`${origin}/progress`, { headers })).json()).toEqual(
+    before,
+  );
+  const next = (await (
+    await fetch(`${origin}/practice`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ skillId: "division" }),
+    })
+  ).json()) as PracticeView;
+  expect(next.exercise.difficulty).toBe(1);
+  expect(next.exercise.id).not.toBe(s.exercise.id);
   await stopApi();
 }, 30000);

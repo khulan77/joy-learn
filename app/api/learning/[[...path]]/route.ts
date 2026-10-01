@@ -6,16 +6,15 @@ async function proxy(
   context: { params: Promise<{ path?: string[] }> },
 ) {
   const path = (await context.params).path ?? [];
-  if (!(
-    (path.length === 1 && path[0] === "sessions") ||
-    (path.length === 2 &&
-      path[0] === "sessions" &&
-      /^[0-9a-f-]{36}$/.test(path[1])) ||
-    (path.length === 3 &&
-      path[0] === "sessions" &&
-      /^[0-9a-f-]{36}$/.test(path[1]) &&
-      path[2] === "turns")
-  ))
+  const resource = path[0];
+  const allowed =
+    (path.length === 1 &&
+      ["sessions", "curriculum", "progress", "practice"].includes(resource)) ||
+    (path.length === 2 && resource === "practice" && path[1] === "resume") ||
+    (["sessions", "practice"].includes(resource) &&
+      /^[0-9a-f-]{36}$/.test(path[1] ?? "") &&
+      (path.length === 2 || (path.length === 3 && path[2] === "turns")));
+  if (!allowed)
     return NextResponse.json({ message: "Not found" }, { status: 404 });
   if (
     request.method === "POST" &&

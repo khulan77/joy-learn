@@ -1159,3 +1159,119 @@ footer {
     font-size: 11px;
   }
 }
+
+.practice-page {
+  max-width: 850px;
+  margin: auto;
+}
+.practice-entry,
+.practice-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 20px 0;
+}
+.practice-label {
+  margin-top: 28px;
+}
+.practice-page select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 13px;
+  background: white;
+  margin: 10px 0 20px;
+}
+.skill-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 20px 0;
+}
+.skill-card {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+  background: #f7f9f2;
+  color: var(--ink);
+  min-height: 130px;
+}
+.skill-card > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.practice-question {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px;
+  background: #edf2df;
+}
+.practice-question h2 {
+  font-size: 25px;
+  line-height: 1.5;
+}
+.practice-page .messages {
+  height: 300px;
+}
+.practice-page .hint-button {
+  min-height: 44px;
+}
+.progress-card h2 {
+  font-size: 18px;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+.progress-card p {
+  margin: 16px 0;
+  font-size: 13px;
+}
+.progress-card progress {
+  width: 100%;
+  accent-color: var(--green);
+  height: 12px;
+}
+.progress-card dl {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  margin-top: 20px;
+}
+.progress-card dd {
+  font-size: 22px;
+  margin-top: 6px;
+}
+@media (max-width: 700px) {
+  .sidebar nav {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .nav-item {
+    min-height: 44px;
+  }
+  .skill-grid {
+    grid-template-columns: 1fr;
+  }
+  .practice-meta {
+    font-size: 11px;
+    align-items: flex-start;
+  }
+  .practice-question {
+    padding: 18px;
+  }
+  .practice-question h2 {
+    font-size: 22px;
+  }
+  .practice-page .input-panel {
+    padding: 20px;
+  }
+  .practice-page .messages {
+    height: 260px;
+  }
+}

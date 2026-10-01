@@ -8,10 +8,11 @@ datasource db {
 }
 
 model Student {
-  id       String            @id
-  grade    Int               @default(3)
-  sessions LearningSession[]
-  mastery  Mastery[]
+  id            String            @id
+  grade         Int               @default(3)
+  sessions      LearningSession[]
+  mastery       Mastery[]
+  masteryEvents MasteryEvent[]
 }
 
 model Subject {
@@ -26,6 +27,7 @@ model Topic {
   grade     Int       @default(3)
   subjectId String
   subject   Subject   @relation(fields: [subjectId], references: [id])
+  skills    Skill[]
   problems  Problem[]
   mastery   Mastery[]
 }
@@ -41,34 +43,39 @@ model Problem {
 }
 
 model LearningSession {
-  id        String         @id
-  studentId String
-  student   Student        @relation(fields: [studentId], references: [id])
-  problemId String
-  problem   Problem        @relation(fields: [problemId], references: [id])
-  status    String         @default("active")
-  step      Int            @default(0)
-  hintLevel Int            @default(0)
-  hintsUsed Int            @default(0)
-  version   Int            @default(0)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  attempts  Attempt[]
-  messages  TutorMessage[]
+  practice   Json?
+  exerciseId String?
+  exercise   CurriculumExercise? @relation(fields: [exerciseId], references: [id])
+  id         String              @id
+  studentId  String
+  student    Student             @relation(fields: [studentId], references: [id])
+  problemId  String
+  problem    Problem             @relation(fields: [problemId], references: [id])
+  status     String              @default("active")
+  step       Int                 @default(0)
+  hintLevel  Int                 @default(0)
+  hintsUsed  Int                 @default(0)
+  version    Int                 @default(0)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  attempts   Attempt[]
+  messages   TutorMessage[]
 
   @@index([studentId, updatedAt])
 }
 
 model Attempt {
-  id        String          @id
-  sessionId String
-  session   LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  answer    String
-  position  Int
-  correct   Boolean
-  step      Int
-  hintLevel Int
-  createdAt DateTime        @default(now())
+  detectedMistake String?
+  masteryEvent    MasteryEvent?
+  id              String          @id
+  sessionId       String
+  session         LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  answer          String
+  position        Int
+  correct         Boolean
+  step            Int
+  hintLevel       Int
+  createdAt       DateTime        @default(now())
 
   @@unique([sessionId, position])
 }
@@ -89,10 +96,53 @@ model Mastery {
   id        String   @id @default(cuid())
   studentId String
   student   Student  @relation(fields: [studentId], references: [id])
-  topicId   String
-  topic     Topic    @relation(fields: [topicId], references: [id])
+  topicId   String?
+  topic     Topic?   @relation(fields: [topicId], references: [id])
+  skillId   String?
+  skill     Skill?   @relation(fields: [skillId], references: [id])
   score     Float?
   updatedAt DateTime @updatedAt
 
   @@unique([studentId, topicId])
+  @@unique([studentId, skillId])
+}
+
+model Skill {
+  id        String               @id
+  name      String
+  concept   String
+  topicId   String
+  topic     Topic                @relation(fields: [topicId], references: [id])
+  exercises CurriculumExercise[]
+  mastery   Mastery[]
+  events    MasteryEvent[]
+}
+
+model CurriculumExercise {
+  id         String            @id
+  skillId    String
+  skill      Skill             @relation(fields: [skillId], references: [id])
+  difficulty Int
+  version    Int
+  source     String
+  content    Json
+  sessions   LearningSession[]
+
+  @@index([skillId, difficulty])
+}
+
+model MasteryEvent {
+  id        Int      @id @default(autoincrement())
+  attemptId String   @unique
+  attempt   Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  skillId   String
+  skill     Skill    @relation(fields: [skillId], references: [id])
+  before    Float
+  after     Float
+  delta     Float
+  createdAt DateTime @default(now())
+
+  @@index([studentId, skillId, id])
 }
